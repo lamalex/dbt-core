@@ -41,7 +41,7 @@ We can run everything?
 
 
 class TestRunCommands:
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def drop_snapshots(self, happy_path_project, project_root: str) -> None:
         """The snapshots are erroring out, so lets drop them.
 
@@ -52,11 +52,13 @@ class TestRunCommands:
         files available to the happy path project, it doesn't affect that fixture for tests in other test classes."""
         shutil.rmtree(f"{project_root}/snapshots")
 
-    def test_run_commmands(
+    @pytest.mark.parametrize("dbt_command", [(command,) for command in commands])
+    def test_run_commmand(
+        self,
         happy_path_project,
+        dbt_command,
     ):
-        for dbt_command in commands:
-            run_dbt([dbt_command])
+        run_dbt([dbt_command])
 
 
 """
