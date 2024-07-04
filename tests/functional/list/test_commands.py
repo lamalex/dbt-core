@@ -6,38 +6,22 @@ from dbt.cli.types import Command
 from dbt.contracts.graph.nodes import BaseNode
 from dbt.tests.util import run_dbt
 
-for i in Command:
-    print(i.value)
-
-commands = [
-    "build",
-    "clean",
-    "compile",
-    # "clone",
-    # "generate",
-    # "serve",
-    "debug",
-    "deps",
-    # "init",
+# These are commands we're skipping as they don't make sense/work with the
+# happy path fixture currently
+commands_to_skip = {
+    "clone",
+    "generate",
+    "server",
+    "init",
     "list",
-    "parse",
-    "run",
-    # "run-operation",
-    "seed",
-    # "show", # need to specify a resource
-    # "snapshot",
-    # "freshness",
-    "test",
-    "retry",
-]
+    "run-operation",
+    "show",
+    "snapshot",
+    "freshness",
+}
 
-"""
-Idea 1: define a mapping of commands-> actual commands to run, and a list to skip, make sure they add up to all commands
-
-Run everything to make sure we are not missing any commands
-
-We can run everything?
-"""
+# Commands to happy path test
+commands = [command.value for command in Command if command.value not in commands_to_skip]
 
 
 class TestRunCommands:
