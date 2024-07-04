@@ -2,9 +2,13 @@ import shutil
 
 import pytest
 
+from dbt.artifacts.resources.types import NodeType
+from dbt.cli.main import dbtRunner
 from dbt.cli.types import Command
 from dbt.contracts.graph.nodes import BaseNode
+from dbt.events.types import NoNodesSelected
 from dbt.tests.util import run_dbt
+from tests.utils import EventCatcher
 
 # These are commands we're skipping as they don't make sense/work with the
 # happy path fixture currently
@@ -79,3 +83,41 @@ we fine end classes from here, but do not include all of the nodes we can select
 select modified: find all node types, define ways to modify each one of them in the happy path project, modify one of them,
 run select state:modified and make sure the modified node is selected
 """
+
+# TODO: Figure out which of these are just missing from the happy path fixture vs which ones aren't selectable
+skipped_resource_types = {
+    "analysis",
+    "operation",
+    "rpc",
+    "sql_operation",
+    "doc",
+    "macro",
+    "exposure",
+    "group",
+    "unit_test",
+    "fixture",
+}
+resource_types = [
+    node_type.value for node_type in NodeType if node_type.value not in skipped_resource_types
+]
+
+
+class TestSelectResourceType:
+    @pytest.fixture(scope="function")
+    def catcher(self) -> EventCatcher:
+        return EventCatcher(event_to_catch=NoNodesSelected)
+
+    @pytest.fixture(scope="function")
+    def runner(self, catcher: EventCatcher) -> dbtRunner:
+        return dbtRunner(callbacks=[catcher.catch])
+
+    @pytest.mark.parametrize("resource_type", resource_types)
+    def test_select_by_resource_type(
+        self,
+        resource_type: str,
+        happy_path_project,
+        runner: dbtRunner,
+        catcher: EventCatcher,
+    ) -> None:
+        runner.invoke(["list", "--select", f"resource_type:{resource_type}"])
+        assert len(catcher.caught_events) == 0
