@@ -636,9 +636,9 @@ class ModelNode(ModelResource, CompiledNode):
         contract_enforced_disabled: bool = False
         columns_removed: List[str] = []
         column_type_changes: List[Dict[str, str]] = []
-        enforced_column_constraint_removed: List[
-            Dict[str, str]
-        ] = []  # column_name, constraint_type
+        enforced_column_constraint_removed: List[Dict[str, str]] = (
+            []
+        )  # column_name, constraint_type
         enforced_model_constraint_removed: List[Dict[str, Any]] = []  # constraint_type, columns
         materialization_changed: List[str] = []
 
@@ -1120,7 +1120,7 @@ class UnpatchedSourceDefinition(BaseNode):
     def get_source_representation(self):
         return f'source("{self.source.name}", "{self.table.name}")'
 
-    def validate_data_tests(self):
+    def validate_data_tests(self, is_root_project: bool):
         """
         sources parse tests differently than models, so we need to do some validation
         here where it's done in the PatchParser for other nodes
@@ -1131,11 +1131,12 @@ class UnpatchedSourceDefinition(BaseNode):
                 "Invalid test config: cannot have both 'tests' and 'data_tests' defined"
             )
         if self.tests:
-            deprecations.warn(
-                "project-test-config",
-                deprecated_path="tests",
-                exp_path="data_tests",
-            )
+            if is_root_project:
+                deprecations.warn(
+                    "project-test-config",
+                    deprecated_path="tests",
+                    exp_path="data_tests",
+                )
             self.data_tests.extend(self.tests)
             self.tests.clear()
 
@@ -1146,11 +1147,12 @@ class UnpatchedSourceDefinition(BaseNode):
                     "Invalid test config: cannot have both 'tests' and 'data_tests' defined"
                 )
             if column.tests:
-                deprecations.warn(
-                    "project-test-config",
-                    deprecated_path="tests",
-                    exp_path="data_tests",
-                )
+                if is_root_project:
+                    deprecations.warn(
+                        "project-test-config",
+                        deprecated_path="tests",
+                        exp_path="data_tests",
+                    )
                 column.data_tests.extend(column.tests)
                 column.tests.clear()
 
@@ -1168,7 +1170,6 @@ class UnpatchedSourceDefinition(BaseNode):
         return [] if self.table.columns is None else self.table.columns
 
     def get_tests(self) -> Iterator[Tuple[Dict[str, Any], Optional[UnparsedColumn]]]:
-        self.validate_data_tests()
         for data_test in self.data_tests:
             yield normalize_test(data_test), None
 
@@ -1553,7 +1554,7 @@ class SavedQuery(NodeInfoMixin, GraphNode, SavedQueryResource):
             return False
 
         # exports should be in the same order, so we zip them for easy iteration
-        for (old_export, new_export) in zip(old.exports, self.exports):
+        for old_export, new_export in zip(old.exports, self.exports):
             if not (
                 old_export.name == new_export.name
                 and old_export.config.export_as == new_export.config.export_as
