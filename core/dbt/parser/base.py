@@ -26,6 +26,7 @@ from dbt.exceptions import (
 from dbt.node_types import AccessType, ModelLanguage, NodeType
 from dbt.parser.search import FileBlock
 from dbt_common.dataclass_schema import ValidationError
+from dbt_common.utils import deep_merge
 
 # internally, the parser may store a less-restrictive type that will be
 # transformed into the final type. But it will have to be derived from
@@ -378,10 +379,10 @@ class ConfiguredParser(
             if patch_file := self.manifest.files.get(patch_file_id, None):
                 if isinstance(patch_file, SchemaSourceFile):
                     # TODO: do not hardcode "models"
-                    if unrendered_patch_config := patch_file.unrendered_configs.get(
-                        "models", {}
-                    ).get(parsed_node.name):
-                        patch_config_dict = unrendered_patch_config
+                    if unrendered_patch_config := patch_file.get_unrendered_config(
+                        "models", parsed_node.name, getattr(parsed_node, "version", None)
+                    ):
+                        patch_config_dict = deep_merge(patch_config_dict, unrendered_patch_config)
 
         parsed_node.unrendered_config = config.build_config_dict(
             rendered=False, patch_config_dict=patch_config_dict

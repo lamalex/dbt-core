@@ -339,24 +339,34 @@ class YamlReader(metaclass=ABCMeta):
             if "name" not in entry and "model" not in entry:
                 raise ParsingError("Entry did not contain a name")
 
-            unrendered_config = None
+            unrendered_config = {}
             if "config" in entry:
                 unrendered_config = entry["config"]
+
+            unrendered_version_configs = {}
+            if "versions" in entry:
+                for version in entry["versions"]:
+                    if "v" in version:
+                        unrendered_version_configs[version["v"]] = version.get("config", {})
 
             # Render the data (except for tests, data_tests and descriptions).
             # See the SchemaYamlRenderer
             entry = self.render_entry(entry)
 
             # TODO: consider not storing if rendered config == unrendered_config
+            schema_file = self.yaml.file
+            assert isinstance(schema_file, SchemaSourceFile)
+
             if unrendered_config:
-                schema_file = self.yaml.file
-                assert isinstance(schema_file, SchemaSourceFile)
                 schema_file.add_unrendered_config(unrendered_config, self.key, entry["name"])
+
+            for version, unrendered_version_config in unrendered_version_configs.items():
+                schema_file.add_unrendered_config(
+                    unrendered_version_config, self.key, entry["name"], version
+                )
 
             if self.schema_yaml_vars.env_vars:
                 self.schema_parser.manifest.env_vars.update(self.schema_yaml_vars.env_vars)
-                schema_file = self.yaml.file
-                assert isinstance(schema_file, SchemaSourceFile)
                 for var in self.schema_yaml_vars.env_vars.keys():
                     schema_file.add_env_var(var, self.key, entry["name"])
                 self.schema_yaml_vars.env_vars = {}
