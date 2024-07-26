@@ -349,7 +349,9 @@ class YamlReader(metaclass=ABCMeta):
 
             # TODO: consider not storing if rendered config == unrendered_config
             if unrendered_config:
-                self.schema_parser.manifest.unrendered_patch_configs[path] = unrendered_config
+                schema_file = self.yaml.file
+                assert isinstance(schema_file, SchemaSourceFile)
+                schema_file.add_unrendered_config(unrendered_config, self.key, entry["name"])
 
             if self.schema_yaml_vars.env_vars:
                 self.schema_parser.manifest.env_vars.update(self.schema_yaml_vars.env_vars)
@@ -412,6 +414,8 @@ class SourceParser(YamlReader):
                 self.manifest.source_patches[key] = patch
                 source_file.source_patches.append(key)
             else:
+                # TODO: add unrendered_database from manifest.unrendered_source_patch
+                # self.yaml.path.original_file_path
                 source = self._target_from_dict(UnparsedSourceDefinition, data)
                 self.add_source_definitions(source)
         return ParseResult()
@@ -621,7 +625,7 @@ class PatchParser(YamlReader, Generic[NonSourceTarget, Parsed]):
             node,
             config,
             patch_config_dict=patch.config,
-            patch_original_file_path=patch.original_file_path,
+            patch_file_id=patch.file_id,
         )
 
 
