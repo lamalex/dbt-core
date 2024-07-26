@@ -308,6 +308,7 @@ class ConfiguredParser(
         config: ContextConfig,
         context=None,
         patch_config_dict=None,
+        patch_original_file_path=None,
     ) -> None:
         """Given the ContextConfig used for parsing and the parsed node,
         generate and set the true values to use, overriding the temporary parse
@@ -371,6 +372,13 @@ class ConfiguredParser(
 
         # unrendered_config is used to compare the original database/schema/alias
         # values and to handle 'same_config' and 'same_contents' calls
+        if patch_original_file_path:
+            # Use the unrendered_patch_configs if available, provided patch_config_dict may actuallly already be rendered
+            if unrendered_patch_config_dict := self.manifest.unrendered_patch_configs.get(
+                patch_original_file_path
+            ):
+                patch_config_dict = unrendered_patch_config_dict
+
         parsed_node.unrendered_config = config.build_config_dict(
             rendered=False, patch_config_dict=patch_config_dict
         )
