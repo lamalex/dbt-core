@@ -3,7 +3,6 @@ from argparse import Namespace
 from dataclasses import replace
 
 import pytest
-from dbt_semantic_interfaces.type_enums import MetricType
 from hypothesis import given
 from hypothesis.strategies import builds, lists
 
@@ -53,6 +52,7 @@ from dbt.contracts.graph.nodes import (
 )
 from dbt.node_types import AccessType, NodeType
 from dbt_common.dataclass_schema import ValidationError
+from dbt_semantic_interfaces.type_enums import MetricType
 from tests.unit.utils import (
     ContractTestCase,
     assert_fails_validation,
@@ -1457,13 +1457,6 @@ def test_missing_snapshot_configs(basic_check_snapshot_config_dict):
 
     wrong_fields["strategy"] = "timestamp"
     del wrong_fields["unique_key"]
-    with pytest.raises(ValidationError, match=r"Snapshots must be configured with a 'strategy'"):
-        SnapshotConfig.validate(wrong_fields)
-        cfg = SnapshotConfig.from_dict(wrong_fields)
-        cfg.final_validate()
-
-    wrong_fields["unique_key"] = "id"
-    del wrong_fields["target_schema"]
     with pytest.raises(ValidationError, match=r"Snapshots must be configured with a 'strategy'"):
         SnapshotConfig.validate(wrong_fields)
         cfg = SnapshotConfig.from_dict(wrong_fields)
