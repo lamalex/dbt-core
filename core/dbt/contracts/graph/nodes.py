@@ -58,6 +58,7 @@ from dbt.artifacts.resources import SingularTest as SingularTestResource
 from dbt.artifacts.resources import Snapshot as SnapshotResource
 from dbt.artifacts.resources import SourceDefinition as SourceDefinitionResource
 from dbt.artifacts.resources import SqlOperation as SqlOperationResource
+from dbt.artifacts.resources import TimeSpine
 from dbt.artifacts.resources import UnitTestDefinition as UnitTestDefinitionResource
 from dbt.contracts.graph.model_config import UnitTestNodeConfig
 from dbt.contracts.graph.node_args import ModelNodeArgs
@@ -85,7 +86,11 @@ from dbt.node_types import (
     NodeType,
 )
 from dbt_common.clients.system import write_file
-from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.contracts.constraints import (
+    ColumnLevelConstraint,
+    ConstraintType,
+    ModelLevelConstraint,
+)
 from dbt_common.events.contextvars import set_log_contextvars
 from dbt_common.events.functions import warn_or_error
 
@@ -488,6 +493,18 @@ class ModelNode(ModelResource, CompiledNode):
     @property
     def materialization_enforces_constraints(self) -> bool:
         return self.config.materialized in ["table", "incremental"]
+
+    @property
+    def all_constraints(self) -> List[Union[ModelLevelConstraint, ColumnLevelConstraint]]:
+        constraints: List[Union[ModelLevelConstraint, ColumnLevelConstraint]] = []
+        for model_level_constraint in self.constraints:
+            constraints.append(model_level_constraint)
+
+        for column in self.columns.values():
+            for column_level_constraint in column.constraints:
+                constraints.append(column_level_constraint)
+
+        return constraints
 
     def infer_primary_key(self, data_tests: List["GenericTestNode"]) -> List[str]:
         """
@@ -1609,6 +1626,7 @@ class ParsedNodePatch(ParsedPatch):
     latest_version: Optional[NodeVersion]
     constraints: List[Dict[str, Any]]
     deprecation_date: Optional[datetime]
+    time_spine: Optional[TimeSpine] = None
 
 
 @dataclass

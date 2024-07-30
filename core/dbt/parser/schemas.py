@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Type, TypeVar
 
 from dbt import deprecations
+from dbt.artifacts.resources import RefArgs
+from dbt.artifacts.resources.v1.model import TimeSpine
+from dbt.clients.jinja_static import statically_parse_ref_or_source
 from dbt.clients.yaml_helper import load_yaml_text
 from dbt.config import RuntimeConfig
 from dbt.context.configured import SchemaYamlVars, generate_schema_yml_context
@@ -617,9 +620,16 @@ class NodePatchParser(PatchParser[NodeTarget, ParsedNodePatch], Generic[NodeTarg
         # could possibly skip creating one. Leaving here for now for
         # code consistency.
         deprecation_date: Optional[datetime.datetime] = None
+        time_spine: Optional[TimeSpine] = None
         if isinstance(block.target, UnparsedModelUpdate):
             deprecation_date = block.target.deprecation_date
-
+            time_spine = (
+                TimeSpine(
+                    standard_granularity_column=block.target.time_spine.standard_granularity_column
+                )
+                if block.target.time_spine
+                else None
+            )
         patch = ParsedNodePatch(
             name=block.target.name,
             original_file_path=block.target.original_file_path,
@@ -635,6 +645,7 @@ class NodePatchParser(PatchParser[NodeTarget, ParsedNodePatch], Generic[NodeTarg
             latest_version=None,
             constraints=block.target.constraints,
             deprecation_date=deprecation_date,
+            time_spine=time_spine,
         )
         assert isinstance(self.yaml.file, SchemaSourceFile)
         source_file: SchemaSourceFile = self.yaml.file
@@ -913,9 +924,10 @@ class ModelPatchParser(NodePatchParser[UnparsedModelUpdate]):
                 )
         # These two will have to be reapplied after config is built for versioned models
         self.patch_constraints(node, patch.constraints)
+        self.patch_time_spine(node, patch.time_spine)
         node.build_contract_checksum()
 
-    def patch_constraints(self, node, constraints) -> None:
+    def patch_constraints(self, node, constraints: List[Dict[str, Any]]) -> None:
         contract_config = node.config.get("contract")
         if contract_config.enforced is True:
             self._validate_constraint_prerequisites(node)
@@ -930,6 +942,29 @@ class ModelPatchParser(NodePatchParser[UnparsedModelUpdate]):
 
         self._validate_pk_constraints(node, constraints)
         node.constraints = [ModelLevelConstraint.from_dict(c) for c in constraints]
+        self._process_constraints_refs_and_sources(node)
+
+    def _process_constraints_refs_and_sources(self, model_node: ModelNode) -> None:
+        """
+        Populate model_node.refs and model_node.sources based on foreign-key constraint references,
+        whether defined at the model-level or column-level.
+        """
+        for constraint in model_node.all_constraints:
+            if constraint.type == ConstraintType.foreign_key and constraint.to:
+                try:
+                    ref_or_source = statically_parse_ref_or_source(constraint.to)
+                except ParsingError:
+                    raise ParsingError(
+                        f"Invalid 'ref' or 'source' syntax on foreign key constraint 'to' on model {model_node.name}: {constraint.to}."
+                    )
+
+                if isinstance(ref_or_source, RefArgs):
+                    model_node.refs.append(ref_or_source)
+                else:
+                    model_node.sources.append(ref_or_source)
+
+    def patch_time_spine(self, node, time_spine: Optional[TimeSpine]) -> None:
+        node.time_spine = time_spine
 
     def _validate_pk_constraints(
         self, model_node: ModelNode, constraints: List[Dict[str, Any]]
